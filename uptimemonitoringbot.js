@@ -229,11 +229,14 @@ function checkTcpPort(cfg) {
       const onTimeout = () => {
         cleanup();
 
-        if (tryNumber === 1) {
+        for(tryNumber; tryNumber < 3; tryNumber++) {
           // 👉 genau EIN Retry
-          attempt(2);
-          didRetry = true;
-          return;
+          attempt(tryNumber + 1);
+            if (tryNumber == 3){
+                didRetry = true;
+                return;
+        }
+          
         }
 
         // nach dem Retry endgültig aufgeben

@@ -6,7 +6,7 @@
       "name": "Schelly",
       "url": "https://iaa-schellack.de",
       "verifyTls": true,
-      "timeoutMs": 10000
+      "timeoutMs": 4000
     },
     {
       "name": "TX BWRP",
