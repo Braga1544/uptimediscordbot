@@ -1,0 +1,39 @@
+{
+  "ownerId": "698177809813602385",
+  "checkIntervalMs": 90000,
+  "websites": [
+    {
+      "name": "Schelly",
+      "url": "https://iaa-schellack.de",
+      "verifyTls": true,
+      "timeoutMs": 10000
+    },
+    {
+      "name": "TX BWRP",
+      "url": "https://tx.blackwater-roleplay.de/",
+      "verifyTls": true,
+      "timeoutMs": 5000
+    },
+    {
+      "name": "Bookstack BWRP",
+      "url": "https://internal.blackwater-roleplay.de/login",
+      "verifyTls": true,
+      "timeoutMs": 5000
+    },
+    {
+      "name": "Connect BWRP",
+      "url": "https://connect.blackwater-roleplay.de",
+      "verifyTls": true,
+      "timeoutMs": 5000
+    }
+  ],
+  "ports": [
+    {
+      "name": "BWRP Game TCP",
+      "host": "51.77.68.135",
+      "port": 30120,
+      "protocol": "tcp",
+      "timeoutMs": 3000
+    }
+  ]
+}
