@@ -202,42 +202,53 @@ function checkTcpPort(cfg) {
   const timeoutMs = cfg.timeoutMs || 3000;
 
   return new Promise((resolve) => {
-    const socket = new net.Socket();
 
-    const onError = (err) => {
-      cleanup();
-      if (err && (err.code === "ECONNREFUSED" || err.code === "EHOSTUNREACH" || err.code === "ETIMEDOUT")) {
-        resolve(`❌ **${name}** TCP ${host}:${port} – nicht erreichbar (${err.code})`);
-      } else if (err) {
-        resolve(`❌ **${name}** TCP ${host}:${port} – Fehler: ${err.code || err.message}`);
-      } else {
-        resolve(`❌ **${name}** TCP ${host}:${port} – unbekannter Fehler`);
-      }
+    const attempt = (tryNumber = 1) => {
+      const socket = new net.Socket();
+      let didRetry = false;
+
+      const cleanup = () => {
+        socket.removeListener("error", onError);
+        socket.removeListener("connect", onConnect);
+        socket.removeListener("timeout", onTimeout);
+        socket.destroy();
+      };
+
+      const onError = (err) => {
+        cleanup();
+        resolve(
+          `❌ **${name}** TCP ${host}:${port} – nicht erreichbar (${err.code || err.message})`
+        );
+      };
+
+      const onConnect = () => {
+        cleanup();
+        resolve(`✅ **${name}** TCP ${host}:${port} – erreichbar`);
+      };
+
+      const onTimeout = () => {
+        cleanup();
+
+        if (tryNumber === 1) {
+          // 👉 genau EIN Retry
+          attempt(2);
+          didRetry = true;
+          return;
+        }
+
+        // nach dem Retry endgültig aufgeben
+        resolve(`⏱️ **${name}** TCP ${host}:${port} – Timeout nach ${timeoutMs}ms (nach Retry)`);
+      };
+
+      socket.setTimeout(timeoutMs);
+      socket.once("error", onError);
+      socket.once("connect", onConnect);
+      socket.once("timeout", onTimeout);
+
+      socket.connect(port, host);
     };
 
-    const onConnect = () => {
-      cleanup();
-      resolve(`✅ **${name}** TCP ${host}:${port} – erreichbar`);
-    };
-
-    const onTimeout = () => {
-      cleanup();
-      resolve(`⏱️ **${name}** TCP ${host}:${port} – Timeout nach ${timeoutMs}ms`);
-    };
-
-    const cleanup = () => {
-      socket.removeListener("error", onError);
-      socket.removeListener("connect", onConnect);
-      socket.removeListener("timeout", onTimeout);
-      socket.destroy();
-    };
-
-    socket.setTimeout(timeoutMs);
-    socket.once("error", onError);
-    socket.once("connect", onConnect);
-    socket.once("timeout", onTimeout);
-
-    socket.connect(port, host);
+    attempt();
   });
 }
 
