@@ -45,7 +45,7 @@ let ownerUser = null;      // wird nach Login gesetzt
 // key = name oder URL, value = "ok" | "tls_error" | "down"
 
 const lastWebsiteStates = {};
-
+const websiteAlertActive = {};
 const websiteDownCounters = {};
 
 // ---------------- Hilfsfunktionen ----------------
@@ -356,6 +356,7 @@ async function doMonitoringCycle() {
         const key = getWebsiteKey(cfg, i);
         const prevState = lastWebsiteStates[key] || "ok";
         const prevDownCount = websiteDownCounters[key] || 0;
+        const alertActiveBefore = websiteAlertActive[key] || false;
 
         let downCount = prevDownCount;
 
@@ -371,29 +372,31 @@ async function doMonitoringCycle() {
 
         // --- Alarm-Logik ---
 
-        // TLS-Fehler: weiterhin sofort melden, wenn neu
-        if (result.state === "tls_error" && prevState !== "tls_error") {
+        // TLS-Fehler: sofort melden, aber nur wenn bisher kein aktiver Alarm
+        if (result.state === "tls_error" && !alertActiveBefore) {
         await sendWebsiteProblemAlert(cfg, result);
+        websiteAlertActive[key] = true;
         }
 
         // "Down"-Alarm erst ab 3 aufeinanderfolgenden Down-Zyklen
         if (
         result.state === "down" &&
         downCount >= 3 &&          // jetzt mindestens 3x in Folge down
-        prevDownCount < 3          // vorher war Schwelle noch nicht erreicht
+        prevDownCount < 3 &&       // vorher war Schwelle noch nicht erreicht
+        !alertActiveBefore         // es gibt noch keinen aktiven Alarm
         ) {
         await sendWebsiteProblemAlert(cfg, result);
+        websiteAlertActive[key] = true;
         }
 
-        // Recovery -> wenn zuvor Problemstatus (down oder tls_error)
-        if (
-        result.state === "ok" &&
-        (prevState === "down" || prevState === "tls_error")
-        ) {
+        // Recovery nur, wenn wirklich vorher ein Alarm aktiv war
+        if (result.state === "ok" && alertActiveBefore) {
         await sendWebsiteRecoveryAlert(cfg, result);
+        websiteAlertActive[key] = false;
         }
 
         lastWebsiteStates[key] = result.state;
+
 
         }
 
