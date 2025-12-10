@@ -201,57 +201,62 @@ function checkTcpPort(cfg) {
   const port = cfg.port;
   const timeoutMs = cfg.timeoutMs || 3000;
 
-  return new Promise((resolve) => {
+  const maxRetries = 3;
 
-    const attempt = (tryNumber = 1) => {
+  const attempt = (tryNumber) => {
+    return new Promise((resolve) => {
       const socket = new net.Socket();
-      let didRetry = false;
 
       const cleanup = () => {
-        socket.removeListener("error", onError);
-        socket.removeListener("connect", onConnect);
-        socket.removeListener("timeout", onTimeout);
+        socket.removeAllListeners();
         socket.destroy();
-      };
-
-      const onError = (err) => {
-        cleanup();
-        resolve(
-          `❌ **${name}** TCP ${host}:${port} – nicht erreichbar (${err.code || err.message})`
-        );
       };
 
       const onConnect = () => {
         cleanup();
-        resolve(`✅ **${name}** TCP ${host}:${port} – erreichbar`);
+        resolve({ ok: true, msg: `✅ **${name}** TCP ${host}:${port} – erreichbar (Versuch ${tryNumber})` });
+      };
+
+      const onError = (err) => {
+        cleanup();
+        resolve({ ok: false, code: err.code || err.message });
       };
 
       const onTimeout = () => {
         cleanup();
-
-        for(tryNumber; tryNumber < 3; tryNumber++) {
-          // 👉 genau EIN Retry
-          attempt(tryNumber + 1);
-            if (tryNumber == 3){
-                didRetry = true;
-                return;
-        }
-          
-        }
-
-        // nach dem Retry endgültig aufgeben
-        resolve(`⏱️ **${name}** TCP ${host}:${port} – Timeout nach ${timeoutMs}ms (nach Retry)`);
+        resolve({ ok: false, code: "TIMEOUT" });
       };
 
       socket.setTimeout(timeoutMs);
-      socket.once("error", onError);
       socket.once("connect", onConnect);
+      socket.once("error", onError);
       socket.once("timeout", onTimeout);
 
       socket.connect(port, host);
-    };
+    });
+  };
 
-    attempt();
+  return new Promise(async (resolve) => {
+    for (let i = 1; i <= maxRetries; i++) {
+      const result = await attempt(i);
+
+      // Erfolg → sofort raus
+      if (result.ok) {
+        return resolve(result.msg);
+      }
+
+      // Zwischeninfo: nicht erfolgreich → weiter probieren
+      if (i < maxRetries) {
+        console.log(`Retry ${i}/${maxRetries - 1} für ${name}... (${result.code})`);
+      }
+
+      // Wenn letzter Versuch → finalen Fehler zurückgeben
+      if (i === maxRetries) {
+        resolve(
+          `❌ **${name}** TCP ${host}:${port} – nicht erreichbar nach ${maxRetries} Versuchen (${result.code})`
+        );
+      }
+    }
   });
 }
 
