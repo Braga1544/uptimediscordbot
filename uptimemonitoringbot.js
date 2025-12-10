@@ -13,6 +13,9 @@ const fetch = (...args) =>
 const configRaw = fs.readFileSync("./config.json", "utf-8");
 const CONFIG = JSON.parse(configRaw);
 
+
+
+
 const OWNER_ID = CONFIG.ownerId;
 const CHECK_INTERVAL_MS = CONFIG.checkIntervalMs || 600000;
 const WEBSITES = CONFIG.websites || [];
@@ -40,7 +43,10 @@ let ownerUser = null;      // wird nach Login gesetzt
 
 // Merkt sich den letzten Status pro Website, um nur bei Änderungen zu alarmieren
 // key = name oder URL, value = "ok" | "tls_error" | "down"
+
 const lastWebsiteStates = {};
+
+const websiteDownCounters = {};
 
 // ---------------- Hilfsfunktionen ----------------
 
@@ -349,18 +355,46 @@ async function doMonitoringCycle() {
 
         const key = getWebsiteKey(cfg, i);
         const prevState = lastWebsiteStates[key] || "ok";
+        const prevDownCount = websiteDownCounters[key] || 0;
 
-        // Problemstatus -> Alarm, wenn neu
-        if (result.state !== "ok" && result.state !== prevState) {
-            await sendWebsiteProblemAlert(cfg, result);
+        let downCount = prevDownCount;
+
+        // Down-Counter aktualisieren
+        if (result.state === "down") {
+        downCount = prevDownCount + 1;
+        } else {
+        // bei allem anderen (ok, tls_error, etc.) Counter zurücksetzen
+        downCount = 0;
         }
 
-        // Recovery -> optionaler Alarm, wenn wieder ok
-        if (result.state === "ok" && prevState !== "ok") {
-            await sendWebsiteRecoveryAlert(cfg, result);
+        websiteDownCounters[key] = downCount;
+
+        // --- Alarm-Logik ---
+
+        // TLS-Fehler: weiterhin sofort melden, wenn neu
+        if (result.state === "tls_error" && prevState !== "tls_error") {
+        await sendWebsiteProblemAlert(cfg, result);
+        }
+
+        // "Down"-Alarm erst ab 3 aufeinanderfolgenden Down-Zyklen
+        if (
+        result.state === "down" &&
+        downCount >= 3 &&          // jetzt mindestens 3x in Folge down
+        prevDownCount < 3          // vorher war Schwelle noch nicht erreicht
+        ) {
+        await sendWebsiteProblemAlert(cfg, result);
+        }
+
+        // Recovery -> wenn zuvor Problemstatus (down oder tls_error)
+        if (
+        result.state === "ok" &&
+        (prevState === "down" || prevState === "tls_error")
+        ) {
+        await sendWebsiteRecoveryAlert(cfg, result);
         }
 
         lastWebsiteStates[key] = result.state;
+
         }
 
       lines.push("");
