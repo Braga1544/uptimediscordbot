@@ -201,7 +201,7 @@ function checkTcpPort(cfg) {
   const port = cfg.port;
   const timeoutMs = cfg.timeoutMs || 3000;
 
-  const maxRetries = 3;
+  const maxRetries = 5;
 
   const attempt = (tryNumber) => {
     return new Promise((resolve) => {
